@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Attendance</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+:root{
+    --text:#111827;
+    --muted:#6b7280;
+    --border:#e5e7eb;
+    --bg:#ffffff;
+    --surface:#fafafa;
+    --primary:#111827;
+    --success:#16a34a;
+    --error:#dc2626;
+}
+
+body{
+    font-family:'Inter',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:40px 20px;
+}
+
+.container{
+    max-width:480px;
+    margin:auto;
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px;
+    background:#fff;
+}
+
+h2{
+    font-size:24px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.subtitle{
+    font-size:14px;
+    color:var(--muted);
+    margin-bottom:20px;
+}
+
+.selected{
+    text-align:center;
+    font-size:14px;
+    color:var(--muted);
+    margin-bottom:18px;
+}
+
+.selected span{
+    color:var(--text);
+    font-weight:600;
+}
+
+.roll-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(70px,1fr));
+    gap:10px;
+    max-height:320px;
+    overflow-y:auto;
+    padding:2px;
+}
+
+.roll-grid::-webkit-scrollbar{
+    width:6px;
+}
+
+.roll-grid::-webkit-scrollbar-thumb{
+    background:#d1d5db;
+    border-radius:999px;
+}
+
+.roll-item input{
+    display:none;
+}
+
+.roll-item label{
+    display:block;
+    text-align:center;
+    padding:10px 0;
+    border:1px solid var(--border);
+    border-radius:999px;
+    background:var(--surface);
+    cursor:pointer;
+    user-select:none;
+    font-size:14px;
+    font-weight:500;
+    transition:.15s ease;
+}
+
+.roll-item label:hover{
+    background:#f3f4f6;
+}
+
+.roll-item input:checked + label{
+    background:var(--primary);
+    color:#fff;
+    border-color:var(--primary);
+}
+
+button{
+    width:100%;
+    height:48px;
+    margin-top:22px;
+    border:none;
+    border-radius:10px;
+    background:var(--primary);
+    color:#fff;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+}
+
+button:hover{
+    opacity:.95;
+}
+
+.output{
+    display:none;
+    margin-top:18px;
+    padding:14px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--surface);
+    white-space:pre-line;
+    font-size:14px;
+    line-height:1.7;
+}
+
+.toast{
+    height:20px;
+    margin-top:12px;
+    text-align:center;
+    font-size:14px;
+}
+
+.success{
+    color:var(--success);
+}
+
+.error{
+    color:var(--error);
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>Attendance</h2>
+
+    <div class="subtitle">
+        Select roll numbers and copy attendance.
+    </div>
+
+    <div class="selected">
+        Selected: <span id="count">0</span>
+    </div>
+
+    <div class="roll-grid" id="rollContainer"></div>
+
+    <button onclick="generateAttendance()">
+        Generate & Copy
+    </button>
+
+    <div class="output" id="outputBox"></div>
+
+    <div class="toast" id="toast"></div>
+
+</div>
+
+<script>
+
+const totalRolls = 50;
+
+const rollContainer = document.getElementById("rollContainer");
+const countElement = document.getElementById("count");
+const toast = document.getElementById("toast");
+
+for(let i=1; i<=totalRolls; i++){
+
+    const roll = String(i).padStart(2,"0");
+
+    const item = document.createElement("div");
+    item.className = "roll-item";
+
+    item.innerHTML = `
+        <input type="checkbox" id="roll${i}" value="${roll}">
+        <label for="roll${i}">${roll}</label>
+    `;
+
+    rollContainer.appendChild(item);
+}
+
+document.addEventListener("change", () => {
+
+    const selectedCount =
+        document.querySelectorAll(
+            '.roll-grid input:checked'
+        ).length;
+
+    countElement.textContent = selectedCount;
+});
+
+function showToast(message, type){
+
+    toast.textContent = message;
+    toast.className = `toast ${type}`;
+
+    setTimeout(() => {
+        toast.textContent = "";
+        toast.className = "toast";
+    }, 2500);
+}
+
+async function generateAttendance(){
+
+    const selected =
+        document.querySelectorAll(
+            '.roll-grid input:checked'
+        );
+
+    const rolls =
+        [...selected].map(item => item.value);
+
+    if(rolls.length === 0){
+
+        showToast(
+            "Please select at least one roll.",
+            "error"
+        );
+
+        return;
+    }
+
+    const date =
+        new Date().toLocaleDateString("en-GB");
+
+    const attendanceText =
+`Attendance
+Date: ${date}
+Rolls: ${rolls.join(", ")}`;
+
+    const outputBox =
+        document.getElementById("outputBox");
+
+    outputBox.style.display = "block";
+    outputBox.textContent = attendanceText;
+
+    try{
+
+        await navigator.clipboard.writeText(
+            attendanceText
+        );
+
+        showToast(
+            "Attendance copied to clipboard.",
+            "success"
+        );
+
+    }
+    catch(error){
+
+        showToast(
+            "Unable to copy. Please copy manually.",
+            "error"
+        );
+
+        console.error(error);
+    }
+}
+
+</script>
+
+</body>
+</html>
