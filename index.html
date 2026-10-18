@@ -44,10 +44,17 @@ body{
     background:#fff;
 }
 
+.header-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:6px;
+}
+
 h2{
     font-size:24px;
     font-weight:600;
-    margin-bottom:6px;
 }
 
 .subtitle{
@@ -131,6 +138,24 @@ button:hover{
     opacity:.95;
 }
 
+.reset-button{
+    width:auto;
+    height:auto;
+    margin-top:0;
+    padding:8px 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--surface);
+    color:var(--text);
+    font-size:12px;
+    font-weight:600;
+}
+
+.reset-button:hover{
+    background:#f3f4f6;
+    opacity:1;
+}
+
 .output{
     display:none;
     margin-top:18px;
@@ -164,7 +189,12 @@ button:hover{
 
 <div class="container">
 
-    <h2>Attendance</h2>
+    <div class="header-row">
+        <h2>Attendance</h2>
+        <button class="reset-button" onclick="resetAttendance()" type="button">
+            Reset
+        </button>
+    </div>
 
     <div class="subtitle">
         Select roll numbers and copy attendance.
@@ -176,7 +206,7 @@ button:hover{
 
     <div class="roll-grid" id="rollContainer"></div>
 
-    <button onclick="generateAttendance()">
+    <button onclick="generateAttendance()" type="button">
         Generate & Copy
     </button>
 
@@ -192,6 +222,7 @@ const totalRolls = 100;
 
 const rollContainer = document.getElementById("rollContainer");
 const countElement = document.getElementById("count");
+const outputBox = document.getElementById("outputBox");
 const toast = document.getElementById("toast");
 
 for(let i=1; i<=totalRolls; i++){
@@ -230,6 +261,18 @@ function showToast(message, type){
     }, 2500);
 }
 
+function resetAttendance(){
+
+    document.querySelectorAll('.roll-grid input:checked')
+        .forEach(input => input.checked = false);
+
+    countElement.textContent = "0";
+    outputBox.textContent = "";
+    outputBox.style.display = "none";
+
+    showToast("Attendance reset.", "success");
+}
+
 async function generateAttendance(){
 
     const selected =
@@ -257,9 +300,6 @@ async function generateAttendance(){
 `Attendance
 Date: ${date}
 Rolls: ${rolls.join(", ")}`;
-
-    const outputBox =
-        document.getElementById("outputBox");
 
     outputBox.style.display = "block";
     outputBox.textContent = attendanceText;
