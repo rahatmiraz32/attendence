@@ -149,11 +149,22 @@ button:hover{
     color:var(--text);
     font-size:12px;
     font-weight:600;
+    transition:.15s ease;
 }
 
 .reset-button:hover{
     background:#f3f4f6;
     opacity:1;
+}
+
+.reset-button.confirming{
+    background:var(--error);
+    color:#fff;
+    border-color:var(--error);
+}
+
+.reset-button.confirming:hover{
+    background:#b91c1c;
 }
 
 .output{
@@ -169,10 +180,32 @@ button:hover{
 }
 
 .toast{
-    height:20px;
+    min-height:20px;
     margin-top:12px;
     text-align:center;
     font-size:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+}
+
+.undo-btn{
+    width:auto;
+    height:auto;
+    margin-top:0;
+    padding:2px 8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:#fff;
+    color:var(--text);
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+}
+
+.undo-btn:hover{
+    background:#f3f4f6;
 }
 
 .success{
@@ -191,7 +224,7 @@ button:hover{
 
     <div class="header-row">
         <h2>Attendance</h2>
-        <button class="reset-button" onclick="resetAttendance()" type="button">
+        <button class="reset-button" id="resetBtn" onclick="resetAttendance()" type="button">
             Reset
         </button>
     </div>
@@ -219,11 +252,18 @@ button:hover{
 <script>
 
 const totalRolls = 100;
+const STORAGE_KEY = "attendance_selected_rolls";
 
 const rollContainer = document.getElementById("rollContainer");
 const countElement = document.getElementById("count");
 const outputBox = document.getElementById("outputBox");
 const toast = document.getElementById("toast");
+const resetBtn = document.getElementById("resetBtn");
+
+let toastTimeout = null;
+let resetConfirmTimeout = null;
+let isConfirmingReset = false;
+let lastResetRolls = [];
 
 for(let i=1; i<=totalRolls; i++){
 
@@ -240,6 +280,47 @@ for(let i=1; i<=totalRolls; i++){
     rollContainer.appendChild(item);
 }
 
+function saveState(){
+    const selectedRolls = [
+        ...document.querySelectorAll('.roll-grid input:checked')
+    ].map(input => input.value);
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedRolls));
+    } catch (e) {
+        console.error("Could not save to localStorage:", e);
+    }
+}
+
+function loadState(){
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const savedRolls = JSON.parse(raw);
+        if (!Array.isArray(savedRolls)) return;
+
+        const savedSet = new Set(savedRolls);
+        document.querySelectorAll('.roll-grid input').forEach(input => {
+            input.checked = savedSet.has(input.value);
+        });
+
+        countElement.textContent =
+            document.querySelectorAll('.roll-grid input:checked').length;
+    } catch (e) {
+        console.error("Could not load from localStorage:", e);
+    }
+}
+
+function clearResetConfirmation(){
+    isConfirmingReset = false;
+    resetBtn.textContent = "Reset";
+    resetBtn.classList.remove("confirming");
+    if (resetConfirmTimeout) {
+        clearTimeout(resetConfirmTimeout);
+        resetConfirmTimeout = null;
+    }
+}
+
 document.addEventListener("change", () => {
 
     const selectedCount =
@@ -248,29 +329,83 @@ document.addEventListener("change", () => {
         ).length;
 
     countElement.textContent = selectedCount;
+    clearResetConfirmation();
+    saveState();
 });
 
-function showToast(message, type){
+function showToast(message, type, showUndo = false){
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+    }
 
-    toast.textContent = message;
+    toast.textContent = "";
     toast.className = `toast ${type}`;
 
-    setTimeout(() => {
+    const textSpan = document.createElement("span");
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
+
+    if (showUndo && lastResetRolls.length > 0) {
+        const undoBtn = document.createElement("button");
+        undoBtn.type = "button";
+        undoBtn.className = "undo-btn";
+        undoBtn.textContent = "Undo";
+        undoBtn.onclick = undoReset;
+        toast.appendChild(undoBtn);
+    }
+
+    toastTimeout = setTimeout(() => {
         toast.textContent = "";
         toast.className = "toast";
-    }, 2500);
+    }, 3500);
+}
+
+function undoReset(){
+    const restoreSet = new Set(lastResetRolls);
+    document.querySelectorAll('.roll-grid input').forEach(input => {
+        input.checked = restoreSet.has(input.value);
+    });
+
+    countElement.textContent =
+        document.querySelectorAll('.roll-grid input:checked').length;
+    lastResetRolls = [];
+    saveState();
+    showToast("Attendance restored.", "success");
 }
 
 function resetAttendance(){
+    const checkedInputs = [
+        ...document.querySelectorAll('.roll-grid input:checked')
+    ];
 
-    document.querySelectorAll('.roll-grid input:checked')
-        .forEach(input => input.checked = false);
+    if (checkedInputs.length === 0) {
+        outputBox.textContent = "";
+        outputBox.style.display = "none";
+        showToast("Nothing to reset.", "error");
+        return;
+    }
+
+    if (!isConfirmingReset) {
+        isConfirmingReset = true;
+        resetBtn.textContent = "Confirm Reset?";
+        resetBtn.classList.add("confirming");
+        resetConfirmTimeout = setTimeout(() => {
+            clearResetConfirmation();
+        }, 3000);
+        return;
+    }
+
+    clearResetConfirmation();
+    lastResetRolls = checkedInputs.map(input => input.value);
+
+    checkedInputs.forEach(input => input.checked = false);
 
     countElement.textContent = "0";
     outputBox.textContent = "";
     outputBox.style.display = "none";
 
-    showToast("Attendance reset.", "success");
+    saveState();
+    showToast("Attendance reset.", "success", true);
 }
 
 async function generateAttendance(){
@@ -317,6 +452,22 @@ Rolls: ${rolls.join(", ")}`;
 
     }
     catch(error){
+        try {
+            const textarea = document.createElement("textarea");
+            textarea.value = attendanceText;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            document.body.removeChild(textarea);
+            if (copied) {
+                showToast("Attendance copied to clipboard.", "success");
+                return;
+            }
+        } catch (fallbackErr) {
+            console.error(fallbackErr);
+        }
 
         showToast(
             "Unable to copy. Please copy manually.",
@@ -326,6 +477,8 @@ Rolls: ${rolls.join(", ")}`;
         console.error(error);
     }
 }
+
+loadState();
 
 </script>
 
